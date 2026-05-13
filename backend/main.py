@@ -219,6 +219,8 @@ def create_chapter(chapter: ChapterCreate):
     """Create a new chapter"""
     try:
         chapter_id = db.add_chapter(chapter.number, chapter.title, chapter.content)
+        if chapter.content:
+            db.store_chapter_memory(chapter_id, chapter.content, chapter.title)
         return {"id": chapter_id, "message": "Chapter created"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -234,6 +236,11 @@ def update_chapter(chapter_id: int, chapter: ChapterUpdate):
     )
     if not success:
         raise HTTPException(status_code=404, detail="Chapter not found")
+
+    # Update memory if content changed
+    if chapter.content is not None:
+        db.store_chapter_memory(chapter_id, chapter.content, chapter.title)
+
     return {"message": "Chapter updated"}
 
 @app.delete("/api/chapters/{chapter_id}")
@@ -268,6 +275,12 @@ def get_stats():
 def search(q: str = Query(..., min_length=2)):
     """Search across entities, chapters, events"""
     return db.search(q)
+
+@app.get("/api/memory/search")
+def memory_search(q: str = Query(..., min_length=2), n: int = 5):
+    """Semantic search over chapter memory in ChromaDB"""
+    results = db.search_memory(q, n_results=n)
+    return {"query": q, "results": results}
 
 # ============ EXPORT ============
 
