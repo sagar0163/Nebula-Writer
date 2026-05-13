@@ -2,13 +2,16 @@ import sqlite3
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 import json
+import chromadb
 
 class CodexDatabase:
     """The Codex - Core Data Engine for Nebula-Writer"""
     
-    def __init__(self, db_path: str = "data/codex.db"):
+    def __init__(self, db_path: str = "data/codex.db", chroma_path: str = "data/chroma"):
         self.db_path = db_path
         self._init_db()
+        self.chroma_client = chromadb.PersistentClient(path=chroma_path)
+        self.memory_collection = self.chroma_client.get_or_create_collection(name="chapter_memory")
     
     def _get_connection(self):
         conn = sqlite3.connect(self.db_path)
@@ -458,6 +461,56 @@ class CodexDatabase:
         
         conn.close()
         return results
+
+    # ============ MEMORY / CHROMA ============
+
+    def store_chapter_memory(self, chapter_id: int, content: str, title: Optional[str] = None):
+        """Embeds and stores chapter content in ChromaDB for semantic search"""
+        if not content:
+            return
+
+        doc_id = f"chapter_{chapter_id}"
+        metadata = {"chapter_id": chapter_id, "type": "chapter"}
+        if title:
+            metadata["title"] = title
+
+        # We chunk the content very simply by paragraphs for better retrieval
+        paragraphs = [p.strip() for p in content.split('\n\n') if p.strip()]
+        if not paragraphs:
+            paragraphs = [content]
+
+        ids = [f"{doc_id}_p{i}" for i in range(len(paragraphs))]
+        metadatas = [{**metadata, "paragraph_idx": i} for i in range(len(paragraphs))]
+
+        self.memory_collection.upsert(
+            ids=ids,
+            documents=paragraphs,
+            metadatas=metadatas
+        )
+
+    def search_memory(self, query: str, n_results: int = 5) -> List[Dict]:
+        """Search ChromaDB for relevant story context"""
+        results = self.memory_collection.query(
+            query_texts=[query],
+            n_results=n_results
+        )
+
+        if not results['documents'] or not results['documents'][0]:
+            return []
+
+        docs = results['documents'][0]
+        metadatas = results['metadatas'][0]
+        distances = results['distances'][0] if 'distances' in results and results['distances'] else [0]*len(docs)
+
+        formatted_results = []
+        for i in range(len(docs)):
+            formatted_results.append({
+                "content": docs[i],
+                "metadata": metadatas[i],
+                "distance": distances[i]
+            })
+
+        return formatted_results
 
 
 if __name__ == "__main__":
