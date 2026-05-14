@@ -363,9 +363,14 @@ class CodexDatabase:
         conn = self._get_connection()
         cursor = conn.cursor()
         cursor.execute("DELETE FROM chapters WHERE id = ?", (chapter_id,))
+        success = cursor.rowcount > 0
         conn.commit()
         conn.close()
-        return cursor.rowcount > 0
+
+        if success:
+            self.delete_chapter_memory(chapter_id)
+
+        return success
     
     # ============ SCENE OPERATIONS ============
     
@@ -474,6 +479,9 @@ class CodexDatabase:
         if title:
             metadata["title"] = title
 
+        # Before upserting, remove any existing chunks for this chapter
+        self.delete_chapter_memory(chapter_id)
+
         # We chunk the content very simply by paragraphs for better retrieval
         paragraphs = [p.strip() for p in content.split('\n\n') if p.strip()]
         if not paragraphs:
@@ -487,6 +495,15 @@ class CodexDatabase:
             documents=paragraphs,
             metadatas=metadatas
         )
+
+    def delete_chapter_memory(self, chapter_id: int):
+        """Removes all chunks associated with a chapter from ChromaDB"""
+        try:
+            self.memory_collection.delete(
+                where={"chapter_id": chapter_id}
+            )
+        except Exception:
+            pass # Ignore if not found
 
     def search_memory(self, query: str, n_results: int = 5) -> List[Dict]:
         """Search ChromaDB for relevant story context"""

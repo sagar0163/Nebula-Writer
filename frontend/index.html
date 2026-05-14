@@ -52,6 +52,7 @@
             </div>
             <nav class="flex-1 p-4 space-y-2">
                 <button @click="currentView = 'dashboard'" :class="currentView === 'dashboard' ? 'bg-violet-500/20 text-violet-400' : 'text-slate-400 hover:text-white'" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all">Dashboard</button>
+                <button @click="currentView = 'memory'" :class="currentView === 'memory' ? 'bg-violet-500/20 text-violet-400' : 'text-slate-400 hover:text-white'" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all">Memory Search</button>
                 <button @click="currentView = 'entities'" :class="currentView === 'entities' ? 'bg-violet-500/20 text-violet-400' : 'text-slate-400 hover:text-white'" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all">Entities</button>
                 <button @click="currentView = 'relationships'" :class="currentView === 'relationships' ? 'bg-violet-500/20 text-violet-400' : 'text-slate-400 hover:text-white'" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all">Relationships</button>
                 <button @click="currentView = 'chapters'" :class="currentView === 'chapters' ? 'bg-violet-500/20 text-violet-400' : 'text-slate-400 hover:text-white'" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all">Chapters</button>
@@ -76,6 +77,29 @@
             </header>
             
             <div class="p-8">
+                <!-- Memory Search -->
+                <div v-if="currentView === 'memory'" class="space-y-6 max-w-4xl mx-auto">
+                    <div class="glass p-6 rounded-2xl">
+                        <div class="flex gap-4">
+                            <input v-model="memoryQuery" @keyup.enter="performMemorySearch" placeholder="Ask the Codex about the story..." class="input-field flex-1 px-4 py-3 rounded-xl text-lg">
+                            <button @click="performMemorySearch" class="btn-primary px-8 py-3 rounded-xl font-semibold">Search</button>
+                        </div>
+                    </div>
+                    <div v-if="memoryResults.length > 0" class="space-y-4">
+                        <h3 class="text-xl text-slate-300">Semantic Matches</h3>
+                        <div v-for="(res, idx) in memoryResults" :key="idx" class="glass p-6 rounded-2xl border border-violet-500/20">
+                            <div class="flex justify-between text-sm text-slate-400 mb-2">
+                                <span>Chapter {{ res.metadata.chapter_id }}<span v-if="res.metadata.title">: {{ res.metadata.title }}</span></span>
+                                <span>Distance: {{ res.distance.toFixed(3) }}</span>
+                            </div>
+                            <p class="text-slate-200 leading-relaxed">{{ res.content }}</p>
+                        </div>
+                    </div>
+                    <div v-else-if="hasSearchedMemory" class="text-center py-12 text-slate-400">
+                        No relevant memory found. Try a different query.
+                    </div>
+                </div>
+
                 <!-- Dashboard -->
                 <div v-if="currentView === 'dashboard'" class="space-y-6">
                     <div class="glass glow rounded-2xl p-8"><h3 class="text-2xl font-semibold mb-2">Welcome to Nebula-Writer</h3><p class="text-slate-400">AI-powered fiction writing with persistent memory</p></div>
@@ -222,6 +246,9 @@
                     stats: {},
                     mermaidCode: 'graph TD\n    -- No relationships yet --',
                     searchQuery: '',
+                    memoryQuery: '',
+                    memoryResults: [],
+                    hasSearchedMemory: false,
                     entityFilter: null,
                     showAddModal: false,
                     showEditChapterModal: false,
@@ -283,6 +310,18 @@
                 async saveChapterChanges() {
                     await fetch(`http://localhost:8000/api/chapters/${this.editingChapter.id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ title: this.editingChapter.title, content: this.editingChapter.content }) });
                     this.closeEditChapter(); await this.loadData();
+                },
+                async performMemorySearch() {
+                    if (!this.memoryQuery.trim()) return;
+                    try {
+                        const res = await fetch(`http://localhost:8000/api/memory/search?q=${encodeURIComponent(this.memoryQuery)}&n=5`);
+                        const data = await res.json();
+                        this.memoryResults = data.results || [];
+                        this.hasSearchedMemory = true;
+                    } catch(e) {
+                        console.error('Failed to search memory:', e);
+                        this.hasSearchedMemory = true;
+                    }
                 }
             }
         }).mount('#app');

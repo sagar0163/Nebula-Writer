@@ -13,6 +13,7 @@ from datetime import datetime
 
 # Import Codex
 from codex import CodexDatabase
+from llm import generate_prose
 
 # Initialize app
 app = FastAPI(title="Nebula-Writer API", version="1.0.0")
@@ -75,6 +76,10 @@ class SceneCreate(BaseModel):
     number: int
     beat: Optional[str] = None
     content: str = ""
+
+class WriteRequest(BaseModel):
+    beat: str
+    word_count: int = 500
 
 # ============ ENTITY ENDPOINTS ============
 
@@ -281,6 +286,14 @@ def memory_search(q: str = Query(..., min_length=2), n: int = 5):
     """Semantic search over chapter memory in ChromaDB"""
     results = db.search_memory(q, n_results=n)
     return {"query": q, "results": results}
+
+@app.post("/api/write")
+def write_prose(req: WriteRequest):
+    """Agentic Workflow: Generates prose based on memory context"""
+    context = db.search_memory(req.beat, n_results=3)
+    stats = db.get_stats()
+    prose = generate_prose(req.beat, context, stats)
+    return {"prose": prose}
 
 # ============ EXPORT ============
 

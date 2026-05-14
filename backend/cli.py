@@ -33,6 +33,11 @@ def main():
     visualize_parser = subparsers.add_parser("visualize", help="Visualize data")
     visualize_parser.add_argument("--format", required=True, choices=['mermaid'], help="Format of the visualization")
 
+    # Write Command
+    write_parser = subparsers.add_parser("write", help="Write a chapter using agentic workflow")
+    write_parser.add_argument("--beat", required=True, help="The narrative beat to write")
+    write_parser.add_argument("--words", type=int, default=500, help="Target word count")
+
     args = parser.parse_args()
 
     if args.command is None:
@@ -64,6 +69,26 @@ def main():
                 to_name = entity_map[rel['to_entity_id']]['name'].replace(" ", "_")
                 rel_type = rel['relationship_type']
                 print(f"    {from_name} -->|{rel_type}| {to_name}")
+
+    elif args.command == "write":
+        import os
+        if not os.environ.get("GEMINI_API_KEY"):
+            print("Error: Please set the GEMINI_API_KEY environment variable to use the LLM feature.")
+            sys.exit(1)
+
+        sys.path.insert(0, str(Path(__file__).parent))
+        from llm import generate_prose
+
+        print(f"Retrieving memory context for beat: '{args.beat}'...")
+        context = db.search_memory(args.beat, n_results=3)
+        stats = db.get_stats()
+
+        print("Generating prose using Gemini API...")
+        prose = generate_prose(args.beat, context, stats)
+
+        print("\n--- GENERATED PROSE ---\n")
+        print(prose)
+        print("\n-----------------------\n")
 
 if __name__ == "__main__":
     main()
