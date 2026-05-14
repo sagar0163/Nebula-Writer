@@ -471,16 +471,16 @@ class CodexDatabase:
 
     def store_chapter_memory(self, chapter_id: int, content: str, title: Optional[str] = None):
         """Embeds and stores chapter content in ChromaDB for semantic search"""
-        if not content:
+        # Always remove any existing chunks for this chapter first
+        self.delete_chapter_memory(chapter_id)
+
+        if not content or not content.strip():
             return
 
         doc_id = f"chapter_{chapter_id}"
         metadata = {"chapter_id": chapter_id, "type": "chapter"}
         if title:
             metadata["title"] = title
-
-        # Before upserting, remove any existing chunks for this chapter
-        self.delete_chapter_memory(chapter_id)
 
         # We chunk the content very simply by paragraphs for better retrieval
         paragraphs = [p.strip() for p in content.split('\n\n') if p.strip()]

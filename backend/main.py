@@ -28,9 +28,14 @@ app.add_middleware(
 )
 
 # Database instance
-DATA_DIR = Path(__file__).parent.parent / "data"
+env_data_dir = os.environ.get("DATA_DIR")
+if env_data_dir:
+    DATA_DIR = Path(env_data_dir)
+else:
+    DATA_DIR = Path(__file__).parent.parent / "data"
+
 DATA_DIR.mkdir(exist_ok=True)
-db = CodexDatabase(str(DATA_DIR / "codex.db"))
+db = CodexDatabase(str(DATA_DIR / "codex.db"), str(DATA_DIR / "chroma"))
 
 # ============ MODELS ============
 
